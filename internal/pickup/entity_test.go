@@ -2,6 +2,7 @@ package pickup
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -28,5 +29,19 @@ func TestCreateRequestValidate(t *testing.T) {
 				t.Fatalf("Validate() err = %v, wantErr %v", err, c.wantErr)
 			}
 		})
+	}
+}
+
+func TestScheduleRequestValidate(t *testing.T) {
+	if err := (ScheduleRequest{}).Validate(); err == nil {
+		t.Fatal("empty date should fail")
+	}
+	past := ScheduleRequest{PickupDate: time.Now().Add(-time.Hour)}
+	if err := past.Validate(); err == nil {
+		t.Fatal("past date should fail")
+	}
+	ok := ScheduleRequest{PickupDate: time.Now().Add(24 * time.Hour)}
+	if err := ok.Validate(); err != nil {
+		t.Fatalf("future date failed: %v", err)
 	}
 }
