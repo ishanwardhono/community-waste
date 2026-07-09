@@ -2,11 +2,16 @@ package pickup
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
+	"github.com/ishanwardhono/community-waste/pkg/apperr"
 	"github.com/ishanwardhono/community-waste/pkg/db"
 )
 
@@ -14,6 +19,9 @@ import (
 type Repository interface {
 	Insert(ctx context.Context, p Pickup) error
 	List(ctx context.Context, f ListFilter) ([]Pickup, int64, error)
+	Get(ctx context.Context, id uuid.UUID) (Pickup, error)
+	Schedule(ctx context.Context, id uuid.UUID, date time.Time) (Pickup, error)
+	Cancel(ctx context.Context, id uuid.UUID) (Pickup, error)
 }
 
 type repository struct {
@@ -54,4 +62,32 @@ func (r *repository) List(ctx context.Context, f ListFilter) ([]Pickup, int64, e
 		return nil, 0, err
 	}
 	return items, total, nil
+}
+
+func (r *repository) Get(ctx context.Context, id uuid.UUID) (Pickup, error) {
+	var p Pickup
+	err := sqlx.GetContext(ctx, r.db.Ext(ctx), &p, getQuery, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Pickup{}, apperr.New(http.StatusNotFound, "pickup not found")
+	}
+	return p, err
+}
+
+func (r *repository) Schedule(ctx context.Context, id uuid.UUID, date time.Time) (Pickup, error) {
+	return r.guardedUpdate(ctx, scheduleQuery, "pickup can only be scheduled from pending status", id, date)
+}
+
+func (r *repository) Cancel(ctx context.Context, id uuid.UUID) (Pickup, error) {
+	return r.guardedUpdate(ctx, cancelQuery, "pickup can not be canceled from its current status", id)
+}
+
+// guardedUpdate runs an update that carries its status rule in the where clause,
+// so a no row result means the pickup is in the wrong state.
+func (r *repository) guardedUpdate(ctx context.Context, query, conflictMsg string, args ...any) (Pickup, error) {
+	var p Pickup
+	err := sqlx.GetContext(ctx, r.db.Ext(ctx), &p, query, args...)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Pickup{}, apperr.New(http.StatusConflict, conflictMsg)
+	}
+	return p, err
 }

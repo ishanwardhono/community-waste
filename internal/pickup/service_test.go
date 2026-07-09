@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"go.uber.org/mock/gomock"
@@ -63,6 +64,52 @@ func TestCreateUnknownHousehold(t *testing.T) {
 
 	_, err := svc.Create(context.Background(), req)
 	assertCode(t, err, http.StatusNotFound)
+}
+
+func TestScheduleElectronicNeedsSafetyCheck(t *testing.T) {
+	svc, m := newPickupService(t)
+	id := uuidFor("22222222")
+	no := false
+
+	m.repo.EXPECT().Get(gomock.Any(), id).Return(pickup.Pickup{
+		ID: id, Type: pickup.TypeElectronic, Status: pickup.StatusPending, SafetyCheck: &no,
+	}, nil)
+
+	_, err := svc.Schedule(context.Background(), id, pickup.ScheduleRequest{PickupDate: time.Now().Add(time.Hour)})
+	assertCode(t, err, http.StatusUnprocessableEntity)
+}
+
+func TestScheduleHappyPath(t *testing.T) {
+	svc, m := newPickupService(t)
+	id := uuidFor("22222222")
+	date := time.Now().Add(24 * time.Hour)
+
+	m.repo.EXPECT().Get(gomock.Any(), id).Return(pickup.Pickup{
+		ID: id, Type: pickup.TypeOrganic, Status: pickup.StatusPending,
+	}, nil)
+	m.repo.EXPECT().Schedule(gomock.Any(), id, date).Return(pickup.Pickup{
+		ID: id, Status: pickup.StatusScheduled, PickupDate: &date,
+	}, nil)
+
+	got, err := svc.Schedule(context.Background(), id, pickup.ScheduleRequest{PickupDate: date})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != pickup.StatusScheduled {
+		t.Fatalf("status = %s", got.Status)
+	}
+}
+
+func TestCancelPassesThroughRepoConflict(t *testing.T) {
+	svc, m := newPickupService(t)
+	id := uuidFor("22222222")
+
+	m.repo.EXPECT().Get(gomock.Any(), id).Return(pickup.Pickup{ID: id, Status: pickup.StatusCompleted}, nil)
+	m.repo.EXPECT().Cancel(gomock.Any(), id).
+		Return(pickup.Pickup{}, apperr.New(http.StatusConflict, "pickup can not be canceled from its current status"))
+
+	_, err := svc.Cancel(context.Background(), id)
+	assertCode(t, err, http.StatusConflict)
 }
 
 func validCreateRequest() pickup.CreateRequest {

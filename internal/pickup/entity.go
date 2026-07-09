@@ -74,6 +74,20 @@ func (r CreateRequest) Validate() error {
 	return nil
 }
 
+type ScheduleRequest struct {
+	PickupDate time.Time `json:"pickup_date"`
+}
+
+func (r ScheduleRequest) Validate() error {
+	if r.PickupDate.IsZero() {
+		return apperr.New(http.StatusBadRequest, "pickup_date is required")
+	}
+	if r.PickupDate.Before(time.Now()) {
+		return apperr.New(http.StatusBadRequest, "pickup_date can not be in the past")
+	}
+	return nil
+}
+
 type ListFilter struct {
 	Status      string
 	HouseholdID uuid.UUID

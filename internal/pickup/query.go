@@ -7,4 +7,18 @@ const (
 
 	baseSelect = `SELECT * FROM waste_pickups WHERE 1=1`
 	baseCount  = `SELECT COUNT(*) FROM waste_pickups WHERE 1=1`
+
+	getQuery = `SELECT * FROM waste_pickups WHERE id = $1`
+
+	scheduleQuery = `
+		UPDATE waste_pickups
+		SET status = 'scheduled', pickup_date = $2, updated_at = now()
+		WHERE id = $1 AND status = 'pending'
+		RETURNING *`
+
+	cancelQuery = `
+		UPDATE waste_pickups
+		SET status = 'canceled', updated_at = now()
+		WHERE id = $1 AND status IN ('pending', 'scheduled')
+		RETURNING *`
 )
