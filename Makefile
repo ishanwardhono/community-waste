@@ -3,7 +3,7 @@
 run:
 	go run ./cmd
 
-test:
+test: mock
 	go test ./...
 
 up:

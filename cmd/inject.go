@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 
+	"github.com/ishanwardhono/community-waste/internal/household"
 	"github.com/ishanwardhono/community-waste/internal/server"
 	"github.com/ishanwardhono/community-waste/pkg/config"
 	"github.com/ishanwardhono/community-waste/pkg/db"
@@ -19,7 +20,11 @@ func NewApp(cfg *config.Config) (*App, error) {
 		return nil, err
 	}
 
-	router := server.NewRouter()
+	householdRepo := household.NewRepository(database)
+	householdSvc := household.NewService(householdRepo)
+	householdHandler := household.NewHandler(householdSvc)
+
+	router := server.NewRouter(householdHandler)
 
 	return &App{
 		Server: &http.Server{Addr: ":" + cfg.AppPort, Handler: router},
