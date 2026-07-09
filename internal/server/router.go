@@ -7,10 +7,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/ishanwardhono/community-waste/internal/household"
+	"github.com/ishanwardhono/community-waste/internal/pickup"
 	"github.com/ishanwardhono/community-waste/pkg/httpres"
 )
 
-func NewRouter(households *household.Handler) http.Handler {
+func NewRouter(households *household.Handler, pickups *pickup.Handler) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer, RequestLogger)
 
@@ -20,6 +21,7 @@ func NewRouter(households *household.Handler) http.Handler {
 
 	r.Route("/api", func(api chi.Router) {
 		households.Register(api)
+		pickups.Register(api)
 	})
 
 	return r
