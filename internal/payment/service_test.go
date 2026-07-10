@@ -1,0 +1,120 @@
+package payment_test
+
+import (
+	"context"
+	"net/http"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+	"go.uber.org/mock/gomock"
+
+	"github.com/ishanwardhono/community-waste/internal/household"
+	"github.com/ishanwardhono/community-waste/internal/payment"
+	"github.com/ishanwardhono/community-waste/internal/pickup"
+	"github.com/ishanwardhono/community-waste/pkg/apperr"
+	mockhousehold "github.com/ishanwardhono/community-waste/test/mocks/household"
+	mockpayment "github.com/ishanwardhono/community-waste/test/mocks/payment"
+	mockpickup "github.com/ishanwardhono/community-waste/test/mocks/pickup"
+)
+
+type paymentMocks struct {
+	repo       *mockpayment.MockRepository
+	households *mockhousehold.MockService
+	pickups    *mockpickup.MockRepository
+}
+
+func newPaymentService(t *testing.T) (payment.Service, paymentMocks) {
+	ctrl := gomock.NewController(t)
+	m := paymentMocks{
+		repo:       mockpayment.NewMockRepository(ctrl),
+		households: mockhousehold.NewMockService(ctrl),
+		pickups:    mockpickup.NewMockRepository(ctrl),
+	}
+	return payment.NewService(m.repo, m.households, m.pickups), m
+}
+
+func TestCreateRejectsForeignPickup(t *testing.T) {
+	svc, m := newPaymentService(t)
+	hid, otherHid, wid := uuid.New(), uuid.New(), uuid.New()
+
+	m.households.EXPECT().Get(gomock.Any(), hid).Return(household.Household{ID: hid}, nil)
+	m.pickups.EXPECT().Get(gomock.Any(), wid).Return(pickup.Pickup{ID: wid, HouseholdID: otherHid}, nil)
+
+	_, err := svc.Create(context.Background(), payment.CreateRequest{
+		HouseholdID: hid, WasteID: wid, Amount: decimal.NewFromInt(50000),
+	})
+	assertCode(t, err, http.StatusUnprocessableEntity)
+}
+
+func TestCreateUnknownHousehold(t *testing.T) {
+	svc, m := newPaymentService(t)
+	hid, wid := uuid.New(), uuid.New()
+
+	m.households.EXPECT().Get(gomock.Any(), hid).
+		Return(household.Household{}, apperr.New(http.StatusNotFound, "household not found"))
+
+	_, err := svc.Create(context.Background(), payment.CreateRequest{
+		HouseholdID: hid, WasteID: wid, Amount: decimal.NewFromInt(50000),
+	})
+	assertCode(t, err, http.StatusNotFound)
+}
+
+func TestCreateUnknownPickup(t *testing.T) {
+	svc, m := newPaymentService(t)
+	hid, wid := uuid.New(), uuid.New()
+
+	m.households.EXPECT().Get(gomock.Any(), hid).Return(household.Household{ID: hid}, nil)
+	m.pickups.EXPECT().Get(gomock.Any(), wid).
+		Return(pickup.Pickup{}, apperr.New(http.StatusNotFound, "pickup not found"))
+
+	_, err := svc.Create(context.Background(), payment.CreateRequest{
+		HouseholdID: hid, WasteID: wid, Amount: decimal.NewFromInt(50000),
+	})
+	assertCode(t, err, http.StatusNotFound)
+}
+
+func TestCreateStartsPending(t *testing.T) {
+	svc, m := newPaymentService(t)
+	hid, wid := uuid.New(), uuid.New()
+
+	m.households.EXPECT().Get(gomock.Any(), hid).Return(household.Household{ID: hid}, nil)
+	m.pickups.EXPECT().Get(gomock.Any(), wid).Return(pickup.Pickup{ID: wid, HouseholdID: hid}, nil)
+
+	var saved payment.Payment
+	m.repo.EXPECT().Insert(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, p payment.Payment) error {
+			saved = p
+			return nil
+		})
+
+	got, err := svc.Create(context.Background(), payment.CreateRequest{
+		HouseholdID: hid, WasteID: wid, Amount: decimal.NewFromInt(50000),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != payment.StatusPending {
+		t.Fatalf("status = %s, want pending", got.Status)
+	}
+	if got.ID != saved.ID || got.ID == uuid.Nil {
+		t.Fatalf("id not generated: %v", got.ID)
+	}
+	if !saved.Amount.Equal(decimal.NewFromInt(50000)) {
+		t.Fatalf("amount = %s", saved.Amount)
+	}
+	if got.CreatedAt.IsZero() || got.UpdatedAt.IsZero() {
+		t.Fatal("timestamps not set")
+	}
+}
+
+func assertCode(t *testing.T, err error, want int) {
+	t.Helper()
+	app, ok := err.(*apperr.AppError)
+	if !ok {
+		t.Fatalf("err = %v, want AppError", err)
+	}
+	if app.Code != want {
+		t.Fatalf("code = %d, want %d", app.Code, want)
+	}
+}
