@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/ishanwardhono/community-waste/internal/household"
+	"github.com/ishanwardhono/community-waste/internal/payment"
 	"github.com/ishanwardhono/community-waste/internal/pickup"
 	"github.com/ishanwardhono/community-waste/internal/server"
 	"github.com/ishanwardhono/community-waste/pkg/config"
@@ -29,7 +30,11 @@ func NewApp(cfg *config.Config) (*App, error) {
 	pickupSvc := pickup.NewService(pickupRepo, householdSvc)
 	pickupHandler := pickup.NewHandler(pickupSvc)
 
-	router := server.NewRouter(householdHandler, pickupHandler)
+	paymentRepo := payment.NewRepository(database)
+	paymentSvc := payment.NewService(paymentRepo, householdSvc, pickupRepo)
+	paymentHandler := payment.NewHandler(paymentSvc)
+
+	router := server.NewRouter(householdHandler, pickupHandler, paymentHandler)
 
 	return &App{
 		Server: &http.Server{Addr: ":" + cfg.AppPort, Handler: router},
