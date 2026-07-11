@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/joho/godotenv"
@@ -37,6 +38,14 @@ func main() {
 		}
 	}()
 
+	bgCtx, stopBg := context.WithCancel(ctx)
+	var bg sync.WaitGroup
+	bg.Add(1)
+	go func() {
+		defer bg.Done()
+		app.Worker.Run(bgCtx)
+	}()
+
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 
@@ -52,6 +61,8 @@ func main() {
 	if err := app.Server.Shutdown(shutdownCtx); err != nil {
 		logger.Errorf(ctx, "server shutdown: %v", err)
 	}
+	stopBg()
+	bg.Wait()
 	if err := app.DB.Close(); err != nil {
 		logger.Errorf(ctx, "db close: %v", err)
 	}

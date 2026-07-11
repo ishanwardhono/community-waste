@@ -27,4 +27,9 @@ const (
 		SET status = 'canceled', updated_at = now()
 		WHERE id = $1 AND status IN ('pending', 'scheduled')
 		RETURNING *`
+
+	cancelStaleOrganicQuery = `
+		UPDATE waste_pickups
+		SET status = 'canceled', updated_at = now()
+		WHERE type = 'organic' AND status IN ('pending', 'scheduled') AND created_at < $1`
 )

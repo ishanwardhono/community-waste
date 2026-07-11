@@ -9,11 +9,13 @@ import (
 )
 
 type Config struct {
-	AppPort         string
-	LogLevel        string
-	DB              DBConfig
-	S3              S3Config
-	ShutdownTimeout time.Duration
+	AppPort            string
+	LogLevel           string
+	DB                 DBConfig
+	S3                 S3Config
+	ShutdownTimeout    time.Duration
+	AutoCancelInterval time.Duration
+	AutoCancelMaxAge   time.Duration
 }
 
 type S3Config struct {
@@ -70,6 +72,8 @@ func Load() (*Config, error) {
 	}
 	shutdownRaw := env("SHUTDOWN_TIMEOUT")
 	s3SSLRaw := env("S3_USE_SSL")
+	autoCancelIntervalRaw := env("AUTOCANCEL_INTERVAL")
+	autoCancelMaxAgeRaw := env("AUTOCANCEL_MAX_AGE")
 
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("missing env vars: %s, provide an .env file (see .env.example)",
@@ -81,6 +85,18 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid SHUTDOWN_TIMEOUT: %w", err)
 	}
 	cfg.ShutdownTimeout = shutdown
+
+	autoCancelInterval, err := time.ParseDuration(autoCancelIntervalRaw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid AUTOCANCEL_INTERVAL: %w", err)
+	}
+	cfg.AutoCancelInterval = autoCancelInterval
+
+	autoCancelMaxAge, err := time.ParseDuration(autoCancelMaxAgeRaw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid AUTOCANCEL_MAX_AGE: %w", err)
+	}
+	cfg.AutoCancelMaxAge = autoCancelMaxAge
 
 	s3SSL, err := strconv.ParseBool(s3SSLRaw)
 	if err != nil {
