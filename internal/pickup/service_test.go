@@ -2,6 +2,7 @@ package pickup_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -19,6 +20,8 @@ import (
 type pickupMocks struct {
 	repo       *mockpickup.MockRepository
 	households *mockhousehold.MockService
+	payments   *mockpickup.MockPaymentService
+	tx         *mockpickup.MockTxRunner
 }
 
 func newPickupService(t *testing.T) (pickup.Service, pickupMocks) {
@@ -26,8 +29,10 @@ func newPickupService(t *testing.T) (pickup.Service, pickupMocks) {
 	m := pickupMocks{
 		repo:       mockpickup.NewMockRepository(ctrl),
 		households: mockhousehold.NewMockService(ctrl),
+		payments:   mockpickup.NewMockPaymentService(ctrl),
+		tx:         mockpickup.NewMockTxRunner(ctrl),
 	}
-	return pickup.NewService(m.repo, m.households), m
+	return pickup.NewService(m.repo, m.households, m.payments, m.tx), m
 }
 
 func TestCreateStartsPending(t *testing.T) {
@@ -35,6 +40,7 @@ func TestCreateStartsPending(t *testing.T) {
 	req := validCreateRequest()
 
 	m.households.EXPECT().Get(gomock.Any(), req.HouseholdID).Return(household.Household{}, nil)
+	m.payments.EXPECT().HasPending(gomock.Any(), req.HouseholdID).Return(false, nil)
 
 	var saved pickup.Pickup
 	m.repo.EXPECT().Insert(gomock.Any(), gomock.Any()).
@@ -64,6 +70,63 @@ func TestCreateUnknownHousehold(t *testing.T) {
 
 	_, err := svc.Create(context.Background(), req)
 	assertCode(t, err, http.StatusNotFound)
+}
+
+func TestCreateBlockedByPendingPayment(t *testing.T) {
+	svc, m := newPickupService(t)
+	req := validCreateRequest()
+
+	m.households.EXPECT().Get(gomock.Any(), req.HouseholdID).Return(household.Household{}, nil)
+	m.payments.EXPECT().HasPending(gomock.Any(), req.HouseholdID).Return(true, nil)
+
+	_, err := svc.Create(context.Background(), req)
+	assertCode(t, err, http.StatusUnprocessableEntity)
+}
+
+func TestCompleteCreatesPayment(t *testing.T) {
+	svc, m := newPickupService(t)
+	id, hid := uuidFor("33333333"), uuidFor("44444444")
+
+	m.repo.EXPECT().Get(gomock.Any(), id).Return(pickup.Pickup{
+		ID: id, HouseholdID: hid, Type: pickup.TypeElectronic, Status: pickup.StatusScheduled,
+	}, nil)
+	m.tx.EXPECT().WithTx(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+			return fn(ctx)
+		})
+	m.repo.EXPECT().Complete(gomock.Any(), id).Return(pickup.Pickup{
+		ID: id, HouseholdID: hid, Type: pickup.TypeElectronic, Status: pickup.StatusCompleted,
+	}, nil)
+	m.payments.EXPECT().CreateForPickup(gomock.Any(), hid, id, pickup.TypeElectronic).Return(nil)
+
+	got, err := svc.Complete(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != pickup.StatusCompleted {
+		t.Fatalf("status = %s", got.Status)
+	}
+}
+
+func TestCompleteFailsWhenPaymentFails(t *testing.T) {
+	svc, m := newPickupService(t)
+	id, hid := uuidFor("33333333"), uuidFor("44444444")
+
+	m.repo.EXPECT().Get(gomock.Any(), id).Return(pickup.Pickup{
+		ID: id, HouseholdID: hid, Type: pickup.TypeOrganic, Status: pickup.StatusScheduled,
+	}, nil)
+	m.tx.EXPECT().WithTx(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, fn func(context.Context) error) error {
+			return fn(ctx)
+		})
+	m.repo.EXPECT().Complete(gomock.Any(), id).Return(pickup.Pickup{ID: id, Status: pickup.StatusCompleted}, nil)
+	m.payments.EXPECT().CreateForPickup(gomock.Any(), hid, id, pickup.TypeOrganic).
+		Return(errors.New("insert failed"))
+
+	_, err := svc.Complete(context.Background(), id)
+	if err == nil {
+		t.Fatal("expected error so the transaction rolls back")
+	}
 }
 
 func TestScheduleElectronicNeedsSafetyCheck(t *testing.T) {

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 
 	"github.com/ishanwardhono/community-waste/internal/household"
 	"github.com/ishanwardhono/community-waste/internal/pickup"
@@ -16,6 +17,8 @@ import (
 type Service interface {
 	Create(ctx context.Context, req CreateRequest) (Payment, error)
 	List(ctx context.Context, f ListFilter) ([]Payment, int64, error)
+	HasPending(ctx context.Context, householdID uuid.UUID) (bool, error)
+	CreateForPickup(ctx context.Context, householdID, pickupID uuid.UUID, wasteType pickup.WasteType) error
 }
 
 type service struct {
@@ -59,4 +62,33 @@ func (s *service) Create(ctx context.Context, req CreateRequest) (Payment, error
 
 func (s *service) List(ctx context.Context, f ListFilter) ([]Payment, int64, error) {
 	return s.repo.List(ctx, f)
+}
+
+func (s *service) HasPending(ctx context.Context, householdID uuid.UUID) (bool, error) {
+	return s.repo.HasPending(ctx, householdID)
+}
+
+func (s *service) CreateForPickup(ctx context.Context, householdID, pickupID uuid.UUID, wasteType pickup.WasteType) error {
+	now := time.Now()
+	pay := Payment{
+		ID:          uuid.Must(uuid.NewV7()),
+		HouseholdID: householdID,
+		WasteID:     pickupID,
+		Amount:      amountFor(wasteType),
+		Status:      StatusPending,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
+	if err := s.repo.Insert(ctx, pay); err != nil {
+		logger.Errorf(ctx, "insert payment for pickup %s: %v", pickupID, err)
+		return err
+	}
+	return nil
+}
+
+func amountFor(t pickup.WasteType) decimal.Decimal {
+	if t == pickup.TypeElectronic {
+		return decimal.NewFromInt(100000)
+	}
+	return decimal.NewFromInt(50000)
 }

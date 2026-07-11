@@ -27,12 +27,13 @@ func NewApp(cfg *config.Config) (*App, error) {
 	householdHandler := household.NewHandler(householdSvc)
 
 	pickupRepo := pickup.NewRepository(database)
-	pickupSvc := pickup.NewService(pickupRepo, householdSvc)
-	pickupHandler := pickup.NewHandler(pickupSvc)
 
 	paymentRepo := payment.NewRepository(database)
 	paymentSvc := payment.NewService(paymentRepo, householdSvc, pickupRepo)
 	paymentHandler := payment.NewHandler(paymentSvc)
+
+	pickupSvc := pickup.NewService(pickupRepo, householdSvc, paymentSvc, database)
+	pickupHandler := pickup.NewHandler(pickupSvc)
 
 	router := server.NewRouter(householdHandler, pickupHandler, paymentHandler)
 

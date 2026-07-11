@@ -16,6 +16,12 @@ const (
 		WHERE id = $1 AND status = 'pending'
 		RETURNING *`
 
+	completeQuery = `
+		UPDATE waste_pickups
+		SET status = 'completed', updated_at = now()
+		WHERE id = $1 AND status = 'scheduled'
+		RETURNING *`
+
 	cancelQuery = `
 		UPDATE waste_pickups
 		SET status = 'canceled', updated_at = now()

@@ -108,6 +108,41 @@ func TestCreateStartsPending(t *testing.T) {
 	}
 }
 
+func TestCreateForPickupAmounts(t *testing.T) {
+	cases := []struct {
+		wasteType pickup.WasteType
+		want      int64
+	}{
+		{pickup.TypeOrganic, 50000},
+		{pickup.TypePlastic, 50000},
+		{pickup.TypePaper, 50000},
+		{pickup.TypeElectronic, 100000},
+	}
+	for _, c := range cases {
+		t.Run(string(c.wasteType), func(t *testing.T) {
+			svc, m := newPaymentService(t)
+			hid, wid := uuid.New(), uuid.New()
+
+			var saved payment.Payment
+			m.repo.EXPECT().Insert(gomock.Any(), gomock.Any()).
+				DoAndReturn(func(_ context.Context, p payment.Payment) error {
+					saved = p
+					return nil
+				})
+
+			if err := svc.CreateForPickup(context.Background(), hid, wid, c.wasteType); err != nil {
+				t.Fatal(err)
+			}
+			if !saved.Amount.Equal(decimal.NewFromInt(c.want)) {
+				t.Fatalf("amount = %s, want %d", saved.Amount, c.want)
+			}
+			if saved.Status != payment.StatusPending || saved.WasteID != wid || saved.HouseholdID != hid {
+				t.Fatalf("bad payment: %+v", saved)
+			}
+		})
+	}
+}
+
 func assertCode(t *testing.T, err error, want int) {
 	t.Helper()
 	app, ok := err.(*apperr.AppError)

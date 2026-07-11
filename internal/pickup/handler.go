@@ -25,6 +25,7 @@ func (h *Handler) Register(r chi.Router) {
 		r.Get("/", h.List)
 		r.Put("/{id}/schedule", h.Schedule)
 		r.Put("/{id}/cancel", h.Cancel)
+		r.Put("/{id}/complete", h.Complete)
 	})
 }
 
@@ -80,6 +81,20 @@ func (h *Handler) Cancel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	updated, err := h.svc.Cancel(r.Context(), id)
+	if err != nil {
+		httpres.Error(w, err)
+		return
+	}
+	httpres.OK(w, updated)
+}
+
+func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
+	id, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		httpres.Error(w, apperr.New(http.StatusBadRequest, "invalid pickup id"))
+		return
+	}
+	updated, err := h.svc.Complete(r.Context(), id)
 	if err != nil {
 		httpres.Error(w, err)
 		return
