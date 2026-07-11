@@ -2,12 +2,16 @@ package payment
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
+	"github.com/ishanwardhono/community-waste/external/storage"
 	"github.com/ishanwardhono/community-waste/internal/household"
 	"github.com/ishanwardhono/community-waste/internal/pickup"
 	"github.com/ishanwardhono/community-waste/pkg/apperr"
@@ -17,6 +21,7 @@ import (
 type Service interface {
 	Create(ctx context.Context, req CreateRequest) (Payment, error)
 	List(ctx context.Context, f ListFilter) ([]Payment, int64, error)
+	Confirm(ctx context.Context, id uuid.UUID, proof ProofFile) (Payment, error)
 	HasPending(ctx context.Context, householdID uuid.UUID) (bool, error)
 	CreateForPickup(ctx context.Context, householdID, pickupID uuid.UUID, wasteType pickup.WasteType) error
 }
@@ -25,10 +30,11 @@ type service struct {
 	repo       Repository
 	households household.Service
 	pickups    pickup.Repository
+	store      storage.FileStorage
 }
 
-func NewService(repo Repository, households household.Service, pickups pickup.Repository) Service {
-	return &service{repo: repo, households: households, pickups: pickups}
+func NewService(repo Repository, households household.Service, pickups pickup.Repository, store storage.FileStorage) Service {
+	return &service{repo: repo, households: households, pickups: pickups, store: store}
 }
 
 func (s *service) Create(ctx context.Context, req CreateRequest) (Payment, error) {
@@ -62,6 +68,24 @@ func (s *service) Create(ctx context.Context, req CreateRequest) (Payment, error
 
 func (s *service) List(ctx context.Context, f ListFilter) ([]Payment, int64, error) {
 	return s.repo.List(ctx, f)
+}
+
+func (s *service) Confirm(ctx context.Context, id uuid.UUID, proof ProofFile) (Payment, error) {
+	pay, err := s.repo.Get(ctx, id)
+	if err != nil {
+		return Payment{}, err
+	}
+	if pay.Status != StatusPending {
+		return Payment{}, apperr.New(http.StatusConflict, "payment can only be confirmed from pending status")
+	}
+
+	key := fmt.Sprintf("proofs/%s/%d%s", id, time.Now().UnixNano(), strings.ToLower(filepath.Ext(proof.Name)))
+	url, err := s.store.Upload(ctx, key, proof.Reader, proof.Size, proof.ContentType)
+	if err != nil {
+		logger.Errorf(ctx, "upload proof for payment %s: %v", id, err)
+		return Payment{}, err
+	}
+	return s.repo.Confirm(ctx, id, url)
 }
 
 func (s *service) HasPending(ctx context.Context, householdID uuid.UUID) (bool, error) {

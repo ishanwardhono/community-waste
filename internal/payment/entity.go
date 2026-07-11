@@ -1,7 +1,10 @@
 package payment
 
 import (
+	"io"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -10,6 +13,26 @@ import (
 	"github.com/ishanwardhono/community-waste/pkg/apperr"
 	"github.com/ishanwardhono/community-waste/pkg/httpres"
 )
+
+const maxProofSize = 5 << 20
+
+type ProofFile struct {
+	Name        string
+	Size        int64
+	ContentType string
+	Reader      io.Reader
+}
+
+func (p ProofFile) Validate() error {
+	if p.Size <= 0 || p.Size > maxProofSize {
+		return apperr.New(http.StatusBadRequest, "proof file must be present and under 5MB")
+	}
+	switch strings.ToLower(filepath.Ext(p.Name)) {
+	case ".jpg", ".jpeg", ".png", ".pdf":
+		return nil
+	}
+	return apperr.New(http.StatusBadRequest, "proof file must be jpg, png or pdf")
+}
 
 type Status string
 

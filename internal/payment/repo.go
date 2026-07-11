@@ -2,11 +2,15 @@ package payment
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 
+	"github.com/ishanwardhono/community-waste/pkg/apperr"
 	"github.com/ishanwardhono/community-waste/pkg/db"
 )
 
@@ -14,6 +18,8 @@ import (
 type Repository interface {
 	Insert(ctx context.Context, p Payment) error
 	List(ctx context.Context, f ListFilter) ([]Payment, int64, error)
+	Get(ctx context.Context, id uuid.UUID) (Payment, error)
+	Confirm(ctx context.Context, id uuid.UUID, fileURL string) (Payment, error)
 	HasPending(ctx context.Context, householdID uuid.UUID) (bool, error)
 }
 
@@ -28,6 +34,24 @@ func NewRepository(database *db.Database) Repository {
 func (r *repository) Insert(ctx context.Context, p Payment) error {
 	_, err := sqlx.NamedExecContext(ctx, r.db.Ext(ctx), insertQuery, p)
 	return err
+}
+
+func (r *repository) Get(ctx context.Context, id uuid.UUID) (Payment, error) {
+	var p Payment
+	err := sqlx.GetContext(ctx, r.db.Ext(ctx), &p, getQuery, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Payment{}, apperr.New(http.StatusNotFound, "payment not found")
+	}
+	return p, err
+}
+
+func (r *repository) Confirm(ctx context.Context, id uuid.UUID, fileURL string) (Payment, error) {
+	var p Payment
+	err := sqlx.GetContext(ctx, r.db.Ext(ctx), &p, confirmQuery, id, fileURL)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Payment{}, apperr.New(http.StatusConflict, "payment can only be confirmed from pending status")
+	}
+	return p, err
 }
 
 func (r *repository) HasPending(ctx context.Context, householdID uuid.UUID) (bool, error) {
