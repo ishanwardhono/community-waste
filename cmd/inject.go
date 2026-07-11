@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"net/http"
 
+	"github.com/ishanwardhono/community-waste/external/storage"
 	"github.com/ishanwardhono/community-waste/internal/household"
 	"github.com/ishanwardhono/community-waste/internal/payment"
 	"github.com/ishanwardhono/community-waste/internal/pickup"
@@ -26,10 +28,18 @@ func NewApp(cfg *config.Config) (*App, error) {
 	householdSvc := household.NewService(householdRepo)
 	householdHandler := household.NewHandler(householdSvc)
 
+	store, err := storage.NewMinio(cfg.S3)
+	if err != nil {
+		return nil, err
+	}
+	if err := store.EnsureBucket(context.Background()); err != nil {
+		return nil, err
+	}
+
 	pickupRepo := pickup.NewRepository(database)
 
 	paymentRepo := payment.NewRepository(database)
-	paymentSvc := payment.NewService(paymentRepo, householdSvc, pickupRepo)
+	paymentSvc := payment.NewService(paymentRepo, householdSvc, pickupRepo, store)
 	paymentHandler := payment.NewHandler(paymentSvc)
 
 	pickupSvc := pickup.NewService(pickupRepo, householdSvc, paymentSvc, database)

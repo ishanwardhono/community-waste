@@ -30,3 +30,25 @@ func TestCreateRequestValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestProofFileValidate(t *testing.T) {
+	cases := []struct {
+		name    string
+		file    ProofFile
+		wantErr bool
+	}{
+		{"jpg ok", ProofFile{Name: "bukti.jpg", Size: 1024}, false},
+		{"pdf ok", ProofFile{Name: "Bukti Transfer.PDF", Size: 1024}, false},
+		{"too big", ProofFile{Name: "bukti.png", Size: 6 << 20}, true},
+		{"empty", ProofFile{Name: "bukti.png", Size: 0}, true},
+		{"bad ext", ProofFile{Name: "bukti.exe", Size: 1024}, true},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := c.file.Validate()
+			if (err != nil) != c.wantErr {
+				t.Fatalf("Validate() err = %v, wantErr %v", err, c.wantErr)
+			}
+		})
+	}
+}

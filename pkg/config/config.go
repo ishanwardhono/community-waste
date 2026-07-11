@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -11,7 +12,17 @@ type Config struct {
 	AppPort         string
 	LogLevel        string
 	DB              DBConfig
+	S3              S3Config
 	ShutdownTimeout time.Duration
+}
+
+type S3Config struct {
+	Endpoint       string
+	PublicEndpoint string
+	AccessKey      string
+	SecretKey      string
+	Bucket         string
+	UseSSL         bool
 }
 
 type DBConfig struct {
@@ -49,8 +60,16 @@ func Load() (*Config, error) {
 			Name:     env("DB_NAME"),
 			SSLMode:  env("DB_SSLMODE"),
 		},
+		S3: S3Config{
+			Endpoint:       env("S3_ENDPOINT"),
+			PublicEndpoint: env("S3_PUBLIC_ENDPOINT"),
+			AccessKey:      env("S3_ACCESS_KEY"),
+			SecretKey:      env("S3_SECRET_KEY"),
+			Bucket:         env("S3_BUCKET"),
+		},
 	}
 	shutdownRaw := env("SHUTDOWN_TIMEOUT")
+	s3SSLRaw := env("S3_USE_SSL")
 
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("missing env vars: %s, provide an .env file (see .env.example)",
@@ -62,6 +81,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid SHUTDOWN_TIMEOUT: %w", err)
 	}
 	cfg.ShutdownTimeout = shutdown
+
+	s3SSL, err := strconv.ParseBool(s3SSLRaw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid S3_USE_SSL: %w", err)
+	}
+	cfg.S3.UseSSL = s3SSL
 
 	return cfg, nil
 }

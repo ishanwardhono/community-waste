@@ -2,7 +2,9 @@ package payment_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -16,12 +18,14 @@ import (
 	mockhousehold "github.com/ishanwardhono/community-waste/test/mocks/household"
 	mockpayment "github.com/ishanwardhono/community-waste/test/mocks/payment"
 	mockpickup "github.com/ishanwardhono/community-waste/test/mocks/pickup"
+	mockstorage "github.com/ishanwardhono/community-waste/test/mocks/storage"
 )
 
 type paymentMocks struct {
 	repo       *mockpayment.MockRepository
 	households *mockhousehold.MockService
 	pickups    *mockpickup.MockRepository
+	store      *mockstorage.MockFileStorage
 }
 
 func newPaymentService(t *testing.T) (payment.Service, paymentMocks) {
@@ -30,8 +34,9 @@ func newPaymentService(t *testing.T) (payment.Service, paymentMocks) {
 		repo:       mockpayment.NewMockRepository(ctrl),
 		households: mockhousehold.NewMockService(ctrl),
 		pickups:    mockpickup.NewMockRepository(ctrl),
+		store:      mockstorage.NewMockFileStorage(ctrl),
 	}
-	return payment.NewService(m.repo, m.households, m.pickups), m
+	return payment.NewService(m.repo, m.households, m.pickups, m.store), m
 }
 
 func TestCreateRejectsForeignPickup(t *testing.T) {
@@ -140,6 +145,52 @@ func TestCreateForPickupAmounts(t *testing.T) {
 				t.Fatalf("bad payment: %+v", saved)
 			}
 		})
+	}
+}
+
+func TestConfirmOnlyFromPending(t *testing.T) {
+	svc, m := newPaymentService(t)
+	id := uuid.New()
+
+	m.repo.EXPECT().Get(gomock.Any(), id).Return(payment.Payment{ID: id, Status: payment.StatusPaid}, nil)
+
+	_, err := svc.Confirm(context.Background(), id, payment.ProofFile{Name: "a.jpg", Size: 10})
+	assertCode(t, err, http.StatusConflict)
+}
+
+func TestConfirmUploadsAndSavesURL(t *testing.T) {
+	svc, m := newPaymentService(t)
+	id := uuid.New()
+	url := "http://localhost:9000/payment-proofs/proofs/x.jpg"
+
+	m.repo.EXPECT().Get(gomock.Any(), id).Return(payment.Payment{ID: id, Status: payment.StatusPending}, nil)
+	m.store.EXPECT().Upload(gomock.Any(), gomock.Any(), gomock.Any(), int64(10), "image/jpeg").Return(url, nil)
+	m.repo.EXPECT().Confirm(gomock.Any(), id, url).Return(payment.Payment{
+		ID: id, Status: payment.StatusPaid, ProofFileURL: &url,
+	}, nil)
+
+	got, err := svc.Confirm(context.Background(), id, payment.ProofFile{
+		Name: "a.jpg", Size: 10, ContentType: "image/jpeg", Reader: strings.NewReader("x"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != payment.StatusPaid || got.ProofFileURL == nil {
+		t.Fatalf("payment not confirmed: %+v", got)
+	}
+}
+
+func TestConfirmStorageFailure(t *testing.T) {
+	svc, m := newPaymentService(t)
+	id := uuid.New()
+
+	m.repo.EXPECT().Get(gomock.Any(), id).Return(payment.Payment{ID: id, Status: payment.StatusPending}, nil)
+	m.store.EXPECT().Upload(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+		Return("", errors.New("minio down"))
+
+	_, err := svc.Confirm(context.Background(), id, payment.ProofFile{Name: "a.jpg", Size: 10})
+	if err == nil {
+		t.Fatal("expected error")
 	}
 }
 
