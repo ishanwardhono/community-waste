@@ -16,6 +16,7 @@ import (
 type App struct {
 	Server *http.Server
 	DB     *db.Database
+	Worker *pickup.Worker
 }
 
 func NewApp(cfg *config.Config) (*App, error) {
@@ -45,10 +46,13 @@ func NewApp(cfg *config.Config) (*App, error) {
 	pickupSvc := pickup.NewService(pickupRepo, householdSvc, paymentSvc, database)
 	pickupHandler := pickup.NewHandler(pickupSvc)
 
+	worker := pickup.NewWorker(pickupRepo, cfg.AutoCancelInterval, cfg.AutoCancelMaxAge)
+
 	router := server.NewRouter(householdHandler, pickupHandler, paymentHandler)
 
 	return &App{
 		Server: &http.Server{Addr: ":" + cfg.AppPort, Handler: router},
 		DB:     database,
+		Worker: worker,
 	}, nil
 }

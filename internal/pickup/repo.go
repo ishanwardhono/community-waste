@@ -23,6 +23,7 @@ type Repository interface {
 	Schedule(ctx context.Context, id uuid.UUID, date time.Time) (Pickup, error)
 	Cancel(ctx context.Context, id uuid.UUID) (Pickup, error)
 	Complete(ctx context.Context, id uuid.UUID) (Pickup, error)
+	CancelStaleOrganic(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 type repository struct {
@@ -84,6 +85,14 @@ func (r *repository) Complete(ctx context.Context, id uuid.UUID) (Pickup, error)
 
 func (r *repository) Cancel(ctx context.Context, id uuid.UUID) (Pickup, error) {
 	return r.guardedUpdate(ctx, cancelQuery, "pickup can not be canceled from its current status", id)
+}
+
+func (r *repository) CancelStaleOrganic(ctx context.Context, cutoff time.Time) (int64, error) {
+	res, err := r.db.Ext(ctx).ExecContext(ctx, cancelStaleOrganicQuery, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
 }
 
 // guardedUpdate runs an update that carries its status rule in the where clause,
