@@ -14,6 +14,7 @@ import (
 type Repository interface {
 	Insert(ctx context.Context, p Payment) error
 	List(ctx context.Context, f ListFilter) ([]Payment, int64, error)
+	HasPending(ctx context.Context, householdID uuid.UUID) (bool, error)
 }
 
 type repository struct {
@@ -27,6 +28,12 @@ func NewRepository(database *db.Database) Repository {
 func (r *repository) Insert(ctx context.Context, p Payment) error {
 	_, err := sqlx.NamedExecContext(ctx, r.db.Ext(ctx), insertQuery, p)
 	return err
+}
+
+func (r *repository) HasPending(ctx context.Context, householdID uuid.UUID) (bool, error) {
+	var pending bool
+	err := sqlx.GetContext(ctx, r.db.Ext(ctx), &pending, hasPendingQuery, householdID)
+	return pending, err
 }
 
 func (r *repository) List(ctx context.Context, f ListFilter) ([]Payment, int64, error) {

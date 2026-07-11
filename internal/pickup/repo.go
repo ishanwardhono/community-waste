@@ -22,6 +22,7 @@ type Repository interface {
 	Get(ctx context.Context, id uuid.UUID) (Pickup, error)
 	Schedule(ctx context.Context, id uuid.UUID, date time.Time) (Pickup, error)
 	Cancel(ctx context.Context, id uuid.UUID) (Pickup, error)
+	Complete(ctx context.Context, id uuid.UUID) (Pickup, error)
 }
 
 type repository struct {
@@ -75,6 +76,10 @@ func (r *repository) Get(ctx context.Context, id uuid.UUID) (Pickup, error) {
 
 func (r *repository) Schedule(ctx context.Context, id uuid.UUID, date time.Time) (Pickup, error) {
 	return r.guardedUpdate(ctx, scheduleQuery, "pickup can only be scheduled from pending status", id, date)
+}
+
+func (r *repository) Complete(ctx context.Context, id uuid.UUID) (Pickup, error) {
+	return r.guardedUpdate(ctx, completeQuery, "pickup can only be completed from scheduled status", id)
 }
 
 func (r *repository) Cancel(ctx context.Context, id uuid.UUID) (Pickup, error) {
