@@ -8,6 +8,7 @@ import (
 	"github.com/ishanwardhono/community-waste/internal/household"
 	"github.com/ishanwardhono/community-waste/internal/payment"
 	"github.com/ishanwardhono/community-waste/internal/pickup"
+	"github.com/ishanwardhono/community-waste/internal/report"
 	"github.com/ishanwardhono/community-waste/internal/server"
 	"github.com/ishanwardhono/community-waste/pkg/config"
 	"github.com/ishanwardhono/community-waste/pkg/db"
@@ -47,11 +48,15 @@ func NewApp(cfg *config.Config) (*App, error) {
 	pickupSvc := pickup.NewService(pickupRepo, householdSvc, paymentSvc, database)
 	pickupHandler := pickup.NewHandler(pickupSvc)
 
+	reportRepo := report.NewRepository(database)
+	reportSvc := report.NewService(reportRepo)
+	reportHandler := report.NewHandler(reportSvc)
+
 	worker := pickup.NewWorker(pickupRepo, cfg.AutoCancelInterval, cfg.AutoCancelMaxAge)
 
 	limiter := server.NewIPLimiter(cfg.PickupRateLimitRPS, cfg.PickupRateLimitBurst)
 
-	router := server.NewRouter(householdHandler, pickupHandler, paymentHandler, limiter)
+	router := server.NewRouter(householdHandler, pickupHandler, paymentHandler, reportHandler, limiter)
 
 	return &App{
 		Server:  &http.Server{Addr: ":" + cfg.AppPort, Handler: router},
