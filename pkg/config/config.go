@@ -9,13 +9,15 @@ import (
 )
 
 type Config struct {
-	AppPort            string
-	LogLevel           string
-	DB                 DBConfig
-	S3                 S3Config
-	ShutdownTimeout    time.Duration
-	AutoCancelInterval time.Duration
-	AutoCancelMaxAge   time.Duration
+	AppPort              string
+	LogLevel             string
+	DB                   DBConfig
+	S3                   S3Config
+	ShutdownTimeout      time.Duration
+	AutoCancelInterval   time.Duration
+	AutoCancelMaxAge     time.Duration
+	PickupRateLimitRPS   float64
+	PickupRateLimitBurst int
 }
 
 type S3Config struct {
@@ -74,6 +76,8 @@ func Load() (*Config, error) {
 	s3SSLRaw := env("S3_USE_SSL")
 	autoCancelIntervalRaw := env("AUTOCANCEL_INTERVAL")
 	autoCancelMaxAgeRaw := env("AUTOCANCEL_MAX_AGE")
+	rateLimitRPSRaw := env("PICKUP_RATE_LIMIT_RPS")
+	rateLimitBurstRaw := env("PICKUP_RATE_LIMIT_BURST")
 
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("missing env vars: %s, provide an .env file (see .env.example)",
@@ -103,6 +107,18 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("invalid S3_USE_SSL: %w", err)
 	}
 	cfg.S3.UseSSL = s3SSL
+
+	rateLimitRPS, err := strconv.ParseFloat(rateLimitRPSRaw, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid PICKUP_RATE_LIMIT_RPS: %w", err)
+	}
+	cfg.PickupRateLimitRPS = rateLimitRPS
+
+	rateLimitBurst, err := strconv.Atoi(rateLimitBurstRaw)
+	if err != nil {
+		return nil, fmt.Errorf("invalid PICKUP_RATE_LIMIT_BURST: %w", err)
+	}
+	cfg.PickupRateLimitBurst = rateLimitBurst
 
 	return cfg, nil
 }
