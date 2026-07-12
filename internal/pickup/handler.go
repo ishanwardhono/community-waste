@@ -19,9 +19,9 @@ func NewHandler(svc Service) *Handler {
 	return &Handler{svc: svc}
 }
 
-func (h *Handler) Register(r chi.Router) {
+func (h *Handler) Register(r chi.Router, createLimit func(http.Handler) http.Handler) {
 	r.Route("/pickups", func(r chi.Router) {
-		r.Post("/", h.Create)
+		r.With(createLimit).Post("/", h.Create)
 		r.Get("/", h.List)
 		r.Put("/{id}/schedule", h.Schedule)
 		r.Put("/{id}/cancel", h.Cancel)

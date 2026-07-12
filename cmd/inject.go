@@ -14,9 +14,10 @@ import (
 )
 
 type App struct {
-	Server *http.Server
-	DB     *db.Database
-	Worker *pickup.Worker
+	Server  *http.Server
+	DB      *db.Database
+	Worker  *pickup.Worker
+	Limiter *server.IPLimiter
 }
 
 func NewApp(cfg *config.Config) (*App, error) {
@@ -48,11 +49,14 @@ func NewApp(cfg *config.Config) (*App, error) {
 
 	worker := pickup.NewWorker(pickupRepo, cfg.AutoCancelInterval, cfg.AutoCancelMaxAge)
 
-	router := server.NewRouter(householdHandler, pickupHandler, paymentHandler)
+	limiter := server.NewIPLimiter(cfg.PickupRateLimitRPS, cfg.PickupRateLimitBurst)
+
+	router := server.NewRouter(householdHandler, pickupHandler, paymentHandler, limiter)
 
 	return &App{
-		Server: &http.Server{Addr: ":" + cfg.AppPort, Handler: router},
-		DB:     database,
-		Worker: worker,
+		Server:  &http.Server{Addr: ":" + cfg.AppPort, Handler: router},
+		DB:      database,
+		Worker:  worker,
+		Limiter: limiter,
 	}, nil
 }

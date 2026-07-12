@@ -12,7 +12,7 @@ import (
 	"github.com/ishanwardhono/community-waste/pkg/httpres"
 )
 
-func NewRouter(households *household.Handler, pickups *pickup.Handler, payments *payment.Handler) http.Handler {
+func NewRouter(households *household.Handler, pickups *pickup.Handler, payments *payment.Handler, pickupLimiter *IPLimiter) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer, RequestLogger)
 
@@ -22,7 +22,7 @@ func NewRouter(households *household.Handler, pickups *pickup.Handler, payments 
 
 	r.Route("/api", func(api chi.Router) {
 		households.Register(api)
-		pickups.Register(api)
+		pickups.Register(api, pickupLimiter.Middleware)
 		payments.Register(api)
 	})
 

@@ -45,6 +45,11 @@ func main() {
 		defer bg.Done()
 		app.Worker.Run(bgCtx)
 	}()
+	bg.Add(1)
+	go func() {
+		defer bg.Done()
+		app.Limiter.CleanupLoop(bgCtx)
+	}()
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
