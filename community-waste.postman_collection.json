@@ -1,0 +1,287 @@
+{
+  "info": {
+    "name": "Community Waste Collection API",
+    "description": "REST API for a community waste collection system. Run docker compose up --build and make simulate first; the simulation prints values for the household_id, pickup_id and payment_id variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Households",
+      "item": [
+        {
+          "name": "Create Household",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"owner_name\": \"Budi Santoso\",\n    \"address\": \"Jl. Melati No. 1\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/households",
+              "host": ["{{base_url}}"],
+              "path": ["api", "households"]
+            }
+          }
+        },
+        {
+          "name": "List Households",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/households?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["api", "households"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Household",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/households/{{household_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "households", "{{household_id}}"]
+            }
+          }
+        },
+        {
+          "name": "Delete Household",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/households/{{household_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "households", "{{household_id}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Pickups",
+      "item": [
+        {
+          "name": "Create Pickup",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"household_id\": \"{{household_id}}\",\n    \"type\": \"organic\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/pickups",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pickups"]
+            }
+          }
+        },
+        {
+          "name": "Create Pickup (Electronic)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"household_id\": \"{{household_id}}\",\n    \"type\": \"electronic\",\n    \"safety_check\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/pickups",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pickups"]
+            }
+          }
+        },
+        {
+          "name": "List Pickups",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/pickups?status=pending&household_id={{household_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pickups"],
+              "query": [
+                { "key": "status", "value": "pending" },
+                { "key": "household_id", "value": "{{household_id}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Schedule Pickup",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"pickup_date\": \"2026-07-15T09:00:00Z\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/pickups/{{pickup_id}}/schedule",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pickups", "{{pickup_id}}", "schedule"]
+            }
+          }
+        },
+        {
+          "name": "Complete Pickup",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/pickups/{{pickup_id}}/complete",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pickups", "{{pickup_id}}", "complete"]
+            }
+          }
+        },
+        {
+          "name": "Cancel Pickup",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/pickups/{{pickup_id}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "pickups", "{{pickup_id}}", "cancel"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "Create Payment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"household_id\": \"{{household_id}}\",\n    \"waste_id\": \"{{pickup_id}}\",\n    \"amount\": 50000\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments"]
+            }
+          }
+        },
+        {
+          "name": "List Payments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/payments?status=pending&date_from=2026-07-01&date_to=2026-07-31",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments"],
+              "query": [
+                { "key": "status", "value": "pending" },
+                { "key": "date_from", "value": "2026-07-01" },
+                { "key": "date_to", "value": "2026-07-31" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Confirm Payment",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "proof",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/payments/{{payment_id}}/confirm",
+              "host": ["{{base_url}}"],
+              "path": ["api", "payments", "{{payment_id}}", "confirm"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Waste Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reports/waste-summary",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "waste-summary"]
+            }
+          }
+        },
+        {
+          "name": "Payment Summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reports/payment-summary",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "payment-summary"]
+            }
+          }
+        },
+        {
+          "name": "Household History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/reports/households/{{household_id}}/history",
+              "host": ["{{base_url}}"],
+              "path": ["api", "reports", "households", "{{household_id}}", "history"]
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8080" },
+    { "key": "household_id", "value": "" },
+    { "key": "pickup_id", "value": "" },
+    { "key": "payment_id", "value": "" }
+  ]
+}
