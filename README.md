@@ -37,6 +37,10 @@ The API listens on `http://localhost:8080`. Import
 endpoint; the simulation prints ready-to-paste values for its id variables
 when it finishes.
 
+The MinIO console is available at `http://localhost:9001` (log in with
+`minioadmin` / `minioadmin` on local). Use it to browse the `payment-proofs`
+bucket and preview the uploaded proof files.
+
 ## Environment variables
 
 All variables are required. The app fails fast at startup and lists every
